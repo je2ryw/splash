@@ -1066,11 +1066,18 @@ def serve(args):
             # not block a restart; a live listener still owns the address.
             probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             try:
-                probe.bind(("127.0.0.1", port))
+                probe.bind((args.host, port))
             except OSError:
                 raise LauncherError(
-                    f"127.0.0.1:{port} is in use; stop that service first"
+                    f"{args.host}:{port} is in use; stop that service first"
                 ) from None
+        if args.host != "127.0.0.1" and args.api_key is None:
+            print(
+                f"Warning: listening on {args.host} without --api-key; "
+                "anyone who can reach this port can use the model.",
+                file=sys.stderr,
+                flush=True,
+            )
         local = args.local_model is not None or args.local_package is not None
         if local:
             root = _ensure_local_installed(args.local_model, args.local_package)
@@ -1104,6 +1111,8 @@ def serve(args):
             args.model,
             "--binary",
             str(binary),
+            "--host",
+            args.host,
             "--port",
             str(port),
             "--max-memory",
@@ -1290,6 +1299,12 @@ def parse_args(argv=None):
     server.add_argument(
         "--ple-ssd-cache-mb", type=_parse_ple_ssd_cache_mb, metavar="MIB",
         help="bounded n-gram SSD row cache in MiB, 0 to 1024 (default: 64)",
+    )
+    server.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="IPv4 address to listen on, e.g. 0.0.0.0 for the local network "
+        "(default: 127.0.0.1); set --api-key when exposing the server",
     )
     server.add_argument(
         "--port", type=int, default=PORT, help="local HTTP port (default: 8000)"

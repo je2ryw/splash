@@ -116,6 +116,7 @@ class LauncherTests(unittest.TestCase):
                     argv[argv.index("--binary") + 1], str(launcher.paths.BINARY)
                 )
                 self.assertEqual(argv[argv.index("--model") + 1], MODEL_ID)
+                self.assertEqual(argv[argv.index("--host") + 1], "127.0.0.1")
                 self.assertEqual(
                     argv[-4:],
                     ["--allowed-host", "splash.local", "--allowed-host", "proxy.local"],
@@ -248,6 +249,27 @@ class LauncherTests(unittest.TestCase):
                     fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
                     self.assertEqual(launcher.main(["serve", "--model", MODEL_ID]), 1)
                 install.assert_not_called()
+
+    def test_host_reaches_probe_and_server_and_warns_without_key(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            with (
+                mock.patch.object(launcher, "RUNTIME_DIR", Path(temporary)),
+                mock.patch.object(launcher.socket, "socket") as socket,
+                mock.patch.object(launcher.catalog, "spawn_refresh"),
+                mock.patch.object(launcher, "_ensure_installed"),
+                mock.patch.object(launcher.os, "execve") as execute,
+                mock.patch.dict(os.environ, {}, clear=False) as environment,
+                mock.patch("sys.stdout", io.StringIO()),
+                mock.patch("sys.stderr", io.StringIO()) as error,
+            ):
+                environment.pop("SPLASH_API_KEY", None)
+                launcher.main(["serve", "--model", MODEL_ID, "--host", "0.0.0.0"])
+            socket.return_value.__enter__.return_value.bind.assert_called_once_with(
+                ("0.0.0.0", launcher.PORT)
+            )
+            argv = execute.call_args.args[1]
+            self.assertEqual(argv[argv.index("--host") + 1], "0.0.0.0")
+            self.assertIn("without --api-key", error.getvalue())
 
     def test_real_port_probe_allows_time_wait_but_rejects_live_listener(self):
         for closed in (False, True):

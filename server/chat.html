@@ -353,10 +353,18 @@
     input.focus();
   }
 
+  // crypto.randomUUID exists only in secure contexts (HTTPS or localhost);
+  // a page opened by LAN address over plain HTTP falls back to random bytes.
+  function newId() {
+    if (crypto.randomUUID) return crypto.randomUUID();
+    return [...crypto.getRandomValues(new Uint8Array(16))]
+      .map(byte => byte.toString(16).padStart(2, '0')).join('');
+  }
+
   function persist(firstPrompt) {
     let conversation = conversations.find(item => item.id === activeId);
     if (!conversation) {
-      conversation = {id: crypto.randomUUID(), title: titleFor(firstPrompt), messages, updated: Date.now()};
+      conversation = {id: newId(), title: titleFor(firstPrompt), messages, updated: Date.now()};
       conversations.push(conversation);
       activeId = conversation.id;
     }
